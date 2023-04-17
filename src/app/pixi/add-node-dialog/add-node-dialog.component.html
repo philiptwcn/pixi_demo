@@ -1,34 +1,20 @@
 <!-- <h1 mat-dialog-title>Hi {{data.name}}</h1> -->
 <div mat-dialog-content>
-  <mat-form-field appearance="fill">
-    <mat-label>Select</mat-label>
-    <mat-select [(ngModel)]="type">
-      <mat-option value='0'>Switch</mat-option>
-      <mat-option value='1'>Connector</mat-option>
-    </mat-select>
-  </mat-form-field>
-  <ng-container *ngIf="type==='0'; else connectorTemplate">
-    <form [formGroup]="switchForm">
+    <form [formGroup]="connectorForm">
+      <mat-form-field appearance="fill">
+        <mat-label>Type</mat-label>
+        <mat-select formControlName="type">
+          <mat-option value="switch">switch</mat-option>
+          <mat-option value="router">router</mat-option>
+        </mat-select>
+        </mat-form-field>
       <mat-form-field appearance="fill">
         <mat-label>IP</mat-label>
         <input matInput formControlName="ip">
       </mat-form-field>
       <mat-form-field appearance="fill">
         <mat-label>Node Count</mat-label>
-        <input matInput formControlName="nodeCount">
-      </mat-form-field>
-      <!-- <mat-form-field appearance="fill">
-        <mat-label>Nodes</mat-label>
-        <input matInput formControlName="nodes">
-      </mat-form-field> -->
-    </form>
-
-  </ng-container>
-  <ng-template #connectorTemplate>
-    <form [formGroup]="connectorForm">
-      <mat-form-field appearance="fill">
-        <mat-label>IP</mat-label>
-        <input matInput formControlName="ip">
+        <input matInput formControlName="nodeCount" (input)="onNodeCountChange($event)">
       </mat-form-field>
       <mat-form-field appearance="fill">
         <mat-label>Connection Type</mat-label>
@@ -44,15 +30,25 @@
           <mat-option value=null>null</mat-option>
         </mat-select>
       </mat-form-field>
-
-      <!-- <mat-form-field appearance="fill">
-        <mat-label>Nodes</mat-label>
-        <input matInput formControlName="nodes">
-      </mat-form-field> -->
-
+      <mat-form-field appearance="fill">
+        <mat-label>ToIp</mat-label>
+        <mat-select formControlName="toIp" (selectionChange)="onSelectToIp($event)">
+          <mat-option *ngFor="let asset of data.assets" [value]="asset.ip">{{asset.ip}}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="fill" *ngIf="connectorForm.value.toIp">
+        <mat-label>fromHub</mat-label>
+        <mat-select formControlName="fromHub">
+          <mat-option *ngFor="let asset of nodeCount" [value]="asset">{{asset}}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="fill" *ngIf="connectorForm.value.toIp">
+        <mat-label>toHub</mat-label>
+        <mat-select formControlName="toHub">
+          <mat-option *ngFor="let asset of hubCount" [value]="asset">{{asset}}</mat-option>
+        </mat-select>
+      </mat-form-field>
     </form>
-  </ng-template>
-
 </div>
 <div mat-dialog-actions>
   <button mat-button (click)="onNoClick()">No Thanks</button>
