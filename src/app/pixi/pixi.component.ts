@@ -1,17 +1,8 @@
-import {
-  AfterViewInit,
-  Component,
-  ElementRef,
-  Inject,
-  OnInit,
-  ViewChild,
-} from '@angular/core';
+import { AfterViewInit, Component, ElementRef, ViewChild } from '@angular/core';
 import {
   Application,
   Assets,
   Container,
-  DisplayObject,
-  FederatedPointerEvent,
   Graphics,
   SCALE_MODES,
   Sprite,
@@ -20,6 +11,8 @@ import {
 import { MatDialog } from '@angular/material/dialog';
 import { AddNodeDialogComponent } from './add-node-dialog/add-node-dialog.component';
 import { Connector } from '../shared/models/connector.model';
+import { Connection } from '../shared/models/connection.model';
+import { PixiService } from '../shared/pixi.service';
 
 @Component({
   selector: 'app-pixi',
@@ -34,15 +27,19 @@ export class PixiComponent implements AfterViewInit {
     backgroundColor: '#ffffff',
   });
   assets: Connector[] = [];
-  dragTarget: DisplayObject | undefined;
 
-  constructor(private dialog: MatDialog) {}
+  constructor(private dialog: MatDialog, private pixiService: PixiService) {}
   async ngAfterViewInit() {
+    this.pixiService.app = this.app;
     this.pixiView?.nativeElement.appendChild(this.app.view as any);
     this.app.stage.eventMode = 'dynamic';
     this.app.stage.hitArea = this.app.screen;
-    this.app.stage.on('pointerup', () => this.onDragEnd());
-    this.app.stage.on('pointerupoutside', () => this.onDragEnd());
+    this.app.stage.on('pointerup', () =>
+      this.pixiService.onDragEnd(this.assets)
+    );
+    this.app.stage.on('pointerupoutside', () =>
+      this.pixiService.onDragEnd(this.assets)
+    );
   }
 
   openDialog(): void {
@@ -80,6 +77,44 @@ export class PixiComponent implements AfterViewInit {
       const loadAssets = [asset.ip];
 
       if (toIp) {
+        if (
+          this.assets
+            .find((asset) => asset.ip === toIp)!
+            .connections.find(
+              (connection) => connection.toIp === result.data.ip
+            )
+        ) {
+          this.assets
+            .find((asset) => asset.ip === toIp)!
+            .connections.find(
+              (connection) => connection.toIp === result.data.ip
+            )!.fromIp = toIp;
+          this.assets
+            .find((asset) => asset.ip === toIp)!
+            .connections.find(
+              (connection) => connection.toIp === result.data.ip
+            )!.toIp = result.data.ip;
+          this.assets
+            .find((asset) => asset.ip === toIp)!
+            .connections.find(
+              (connection) => connection.toIp === result.data.ip
+            )!.fromHub = result.data.connections[0].toHub;
+          this.assets
+            .find((asset) => asset.ip === toIp)!
+            .connections.find(
+              (connection) => connection.toIp === result.data.ip
+            )!.toHub = result.data.connections[0].fromHub;
+        } else {
+          this.assets
+            .find((asset) => asset.ip === toIp)!
+            .connections.push({
+              fromIp: toIp,
+              toIp: result.data.ip,
+              fromHub: result.data.connections[0].toHub,
+              toHub: result.data.connections[0].fromHub,
+            } as Connection);
+        }
+
         loadAssets.push(toIp);
       }
       const texturePromise = Assets.load(loadAssets);
@@ -88,7 +123,7 @@ export class PixiComponent implements AfterViewInit {
         const hub = Sprite.from(texture[asset.ip]);
         if (result.data.type === 'router') {
           borders.lineStyle(2, 0x000000, 1);
-          this.regularpolygon(borders, result.data.nodeCount);
+          this.pixiService.regularpolygon(borders, result.data.nodeCount);
         }
         container.pivot = { x: container.width / 2, y: container.height / 2 };
         container.position = {
@@ -116,7 +151,7 @@ export class PixiComponent implements AfterViewInit {
         container.eventMode = 'dynamic';
         container.on(
           'pointerdown',
-          () => this.onDragStart(container),
+          () => this.pixiService.onDragStart(container),
           container
         );
         container.cursor = 'pointer';
@@ -126,7 +161,7 @@ export class PixiComponent implements AfterViewInit {
         if (toIp) {
           connection.lineStyle(2, 0x000000, 1);
           if (result.data.type === 'router') {
-            const moveTo = this.lineToPoint(
+            const moveTo = this.pixiService.lineToPoint(
               connection,
               result.data.nodeCount,
               container.position.x,
@@ -141,7 +176,7 @@ export class PixiComponent implements AfterViewInit {
           const toAsset = this.assets.find((asset) => asset.ip === toIp);
 
           if (toAsset?.nodeCount) {
-            const lineTo = this.lineToPoint(
+            const lineTo = this.pixiService.lineToPoint(
               connection,
               toAsset.nodeCount,
               toContainer!.position.x,
@@ -158,67 +193,5 @@ export class PixiComponent implements AfterViewInit {
         this.app.stage.addChild(container);
       });
     });
-  }
-  lineToPoint(
-    graphics: Graphics,
-    sides: number,
-    toX: number,
-    toY: number,
-    hub: number
-  ) {
-    let a = (Math.PI * 2) / sides;
-    return {
-      x: toX + 100 * Math.cos(a * (hub - 1)),
-      y: toY + 100 * Math.sin(a * (hub - 1)),
-    };
-  }
-  regularpolygon(graphics: Graphics, sides: number) {
-    if (sides < 3) return;
-
-    let a = (Math.PI * 2) / sides;
-
-    const text = new Text(1);
-    text.position = { x: 100, y: 0 };
-    graphics.addChild(text);
-    graphics.moveTo(100, 0);
-    graphics.drawCircle(100, 0, 5);
-
-    for (let i = 1; i < sides; i++) {
-      const text = new Text(i + 1);
-      text.position = {
-        x: 100 * Math.cos(a * i) + 10,
-        y: 100 * Math.sin(a * i) + 10,
-      };
-      graphics.lineTo(100 * Math.cos(a * i), 100 * Math.sin(a * i));
-      graphics.drawCircle(100 * Math.cos(a * i), 100 * Math.sin(a * i), 5);
-      graphics.addChild(text);
-    }
-
-    graphics.closePath();
-  }
-
-  onDragMove(event: FederatedPointerEvent) {
-    if (this.dragTarget) {
-      this.dragTarget.parent.toLocal(
-        event.global,
-        undefined,
-        this.dragTarget.position
-      );
-    }
-  }
-
-  onDragStart(displayObject: DisplayObject) {
-    displayObject.alpha = 0.5;
-
-    this.dragTarget = displayObject;
-    this.app.stage.on('pointermove', (event) => this.onDragMove(event));
-  }
-
-  onDragEnd() {
-    if (this.dragTarget) {
-      this.app.stage.off('pointermove', (event) => this.onDragMove(event));
-      this.dragTarget.alpha = 1;
-      this.dragTarget = undefined;
-    }
   }
 }
